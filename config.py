@@ -1,0 +1,3 @@
+SQLALCHEMY_DATABASE_URI = "postgresql://postgres:YOUR_PASSWORD@localhost:5432/airline_rm"
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+SECRET_KEY = "dev"

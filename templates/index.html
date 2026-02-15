@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Airline Intelligence Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
+        h1 { color: #003366; }
+        .controls { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .controls select, .controls input, .controls button { 
+            padding: 8px 12px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; 
+        }
+        .controls button { background-color: #003366; color: white; cursor: pointer; border: none; }
+        .controls button:hover { background-color: #002244; }
+        #summary { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1em; }
+        table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #003366; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        tr:hover { background-color: #e2e6ea; cursor: pointer; }
+        .chart-container { width: 100%; height: 400px; margin-top: 30px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .error-message { color: red; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Airline Revenue Management Dashboard</h1>
+    <div class="controls">
+        <select id="flightSelect">
+            <option value="">All Flights</option>
+            {% for flight in flights %}
+            <option value="{{ flight.flight_id }}">{{ flight.flight_number }} ({{ flight.origin }}-{{ flight.dest }})</option>
+            {% endfor %}
+        </select>
+        <select id="classSelect">
+            <option value="">All Classes</option>
+            {% for class in classes %}
+            <option value="{{ class }}">{{ class }}</option>
+            {% endfor %}
+        </select>
+        <input type="number" id="minError" placeholder="Min |error|" step="0.1">
+        <button onclick="queryPredictions()">Query</button>
+        <button onclick="loadSummary()">Show Summary</button>
+    </div>
+
+    <div id="summary"></div>
+
+    <h2>Prediction Results (click a row to view booking curve)</h2>
+    <div style="overflow-x: auto;">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Flight</th>
+                    <th>Class</th>
+                    <th>Actual Bookings</th>
+                    <th>Predicted</th>
+                    <th>Error</th>
+                    <th>Actual Revenue</th>
+                    <th>Predicted Revenue</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <h2>Booking Curve</h2>
+    <div class="chart-container">
+        <canvas id="bookingChart"></canvas>
+        <div id="chartError" class="error-message"></div>
+    </div>
+
+    <script>
+        let bookingChart;
+        const chartErrorDiv = document.getElementById('chartError');
+
+        async function queryPredictions() {
+            const flight = document.getElementById('flightSelect').value;
+            const cls = document.getElementById('classSelect').value;
+            const minErr = document.getElementById('minError').value;
+            let url = '/api/predictions?';
+            if (flight) url += `flight_id=${flight}&`;
+            if (cls) url += `class_code=${cls}&`;
+            if (minErr) url += `min_error=${minErr}`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                displayTable(data);
+                
+                // Auto-load the first row's booking curve if available
+                if (data.length > 0) {
+                    loadBookingCurve(data[0].flight_id, data[0].class_code);
+                } else {
+                    chartErrorDiv.innerText = 'No data for selected filters.';
+                    if (bookingChart) bookingChart.destroy();
+                }
+            } catch (error) {
+                console.error('Error fetching predictions:', error);
+            }
+        }
+
+        function displayTable(data) {
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.flight_number} (${row.flight_id})</td>
+                    <td>${row.class_code}</td>
+                    <td>${row.actual_final.toFixed(2)}</td>
+                    <td>${row.predicted_final.toFixed(2)}</td>
+                    <td>${row.error.toFixed(2)}</td>
+                    <td>$${row.actual_revenue.toFixed(2)}</td>
+                    <td>$${row.predicted_revenue.toFixed(2)}</td>
+                `;
+                // Add click event to load booking curve
+                tr.addEventListener('click', () => loadBookingCurve(row.flight_id, row.class_code));
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function loadBookingCurve(flightId, classCode) {
+            console.log(`Loading curve for flight ${flightId}, class ${classCode}`);
+            chartErrorDiv.innerText = ''; // Clear previous errors
+            
+            try {
+                const response = await fetch(`/api/booking_curve?flight_id=${flightId}&class_code=${classCode}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const curve = await response.json();
+                console.log('Curve data:', curve);
+
+                if (curve.length === 0) {
+                    chartErrorDiv.innerText = 'No booking curve data found for this flight/class.';
+                    if (bookingChart) bookingChart.destroy();
+                    return;
+                }
+
+                // Prepare data (days_before descending order)
+                const days = curve.map(d => d.days_before);
+                const bookings = curve.map(d => d.cumulative_bookings);
+
+                // Destroy previous chart if exists
+                if (bookingChart) bookingChart.destroy();
+
+                const ctx = document.getElementById('bookingChart').getContext('2d');
+                bookingChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: [{
+                            label: `Flight ${flightId} Class ${classCode}`,
+                            data: bookings,
+                            borderColor: 'rgb(0, 51, 102)',
+                            backgroundColor: 'rgba(0, 51, 102, 0.1)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { 
+                                reverse: true,
+                                title: { display: true, text: 'Days Before Departure' }
+                            },
+                            y: { 
+                                title: { display: true, text: 'Cumulative Bookings' },
+                                beginAtZero: true
+                            }
+                        },
+                        plugins: {
+                            tooltip: { mode: 'index', intersect: false },
+                            legend: { display: true }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading booking curve:', error);
+                chartErrorDiv.innerText = 'Failed to load booking curve. Check console for details.';
+            }
+        }
+
+        async function loadSummary() {
+            try {
+                const response = await fetch('/api/summary');
+                const summary = await response.json();
+                document.getElementById('summary').innerHTML = `
+                    <p><strong>Total Flights:</strong> ${summary.total_flights} | 
+                    <strong>Total Classes:</strong> ${summary.total_classes} | 
+                    <strong>Actual Revenue:</strong> $${summary.total_actual_revenue.toLocaleString()} | 
+                    <strong>Predicted Revenue:</strong> $${summary.total_predicted_revenue.toLocaleString()} | 
+                    <strong>Avg Error:</strong> ${summary.avg_error.toFixed(2)}</p>
+                `;
+            } catch (error) {
+                console.error('Error loading summary:', error);
+            }
+        }
+
+        // Initial load
+        queryPredictions();
+        loadSummary();
+    </script>
+</body>
+</html>

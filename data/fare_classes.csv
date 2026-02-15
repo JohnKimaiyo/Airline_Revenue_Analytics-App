@@ -1,0 +1,15 @@
+code,cabin,multiplier
+F,First,1.0
+A,First,0.8
+J,Business,1.0
+C,Business,0.8
+D,Business,0.7
+I,Business,0.6
+Y,Economy,1.0
+B,Economy,0.9
+M,Economy,0.8
+H,Economy,0.7
+Q,Economy,0.6
+V,Economy,0.5
+W,Economy,0.4
+S,Economy,0.3
