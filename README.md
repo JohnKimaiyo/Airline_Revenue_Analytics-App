@@ -18,3 +18,27 @@ A Flask-based web application that uses machine learning to predict final bookin
 - **Data**: CSV files (bookings, fares, flights, fare classes)
 
 ## Project Structure
+airline_dashboard/
+├── app.py # Flask application
+├── preprocess.py # Data preprocessing and model training
+├── predictions.csv # Generated dataset with ML results (after preprocessing)
+├── models/
+│ └── predictor.pkl # Trained model (after preprocessing)
+├── data/
+│ ├── bookings_cumulative.csv
+│ ├── fare_classes.csv
+│ ├── fares.csv
+│ └── flights.csv
+├── templates/
+│ └── index.html # Main UI page
+└── README.md # This file
+
+## Installation
+
+1. **Clone the repository** (or create the folder structure and place the files).
+
+2. **Create a virtual environment** (recommended):
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # On Windows: venv\Scripts\activate
+ 
