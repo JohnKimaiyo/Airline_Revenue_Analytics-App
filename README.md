@@ -42,35 +42,44 @@ airline_dashboard/
    python -m venv venv
    source venv/bin/activate   # On Windows: venv\Scripts\activate
 
-   Importance of the Project
-Data-Driven Decision Making: Moves beyond static reports to predictive analytics, helping airlines forecast demand more accurately.
+   ## 🚀 Project Importance
 
-Revenue Optimization: By predicting final bookings early, airlines can adjust pricing, overbooking limits, and inventory allocation to maximize revenue.
+In the high-stakes airline industry, seats are a perishable commodity. This project transitions revenue management from reactive observation to proactive strategy.
 
-Operational Efficiency: Identifies flights and fare classes with high prediction errors, enabling targeted marketing or capacity adjustments.
+* **Data-Driven Decision Making:** Moves beyond static "after-the-fact" reports to predictive analytics, allowing airlines to forecast demand with high precision.
+* **Revenue Optimization:** By predicting final load factors early, airlines can dynamically adjust pricing, overbooking limits, and inventory allocation to maximize yield.
+* **Operational Efficiency:** Automatically flags flights and fare classes with high prediction variances, enabling surgical marketing interventions or capacity shifts.
+* **Competitive Advantage:** Delivers insights comparable to industry giants like **SABRE** or **Amadeus** through custom ML models tailored to proprietary data.
+* **Scalability & Extensibility:** A modular architecture designed to integrate future models such as price elasticity, no-show probability, and seasonal trend analysis.
+* **User-Centric Design:** Complex algorithmic outputs are distilled into an interactive dashboard, making deep-tier data accessible to analysts and executive stakeholders alike.
 
-Competitive Advantage: Provides insights comparable to advanced systems like SABRE or Amadeus, but with custom machine learning tailored to the airline’s own data.
+---
 
-Scalability: The modular design allows easy addition of new models (e.g., price elasticity, no-show predictions) and data sources.
+## ⚙️ How It Works
 
-User-Friendly Interface: Interactive dashboard with visual booking curves makes complex data accessible to analysts and managers.
+The system follows a robust "Data-to-Dashboard" pipeline, transforming raw flight snapshots into revenue-generating insights.
 
-How It Works
-Data Integration: Merges four datasets – cumulative bookings, fares, fare classes, and flight schedules – into a unified structure.
+### 1. Data Integration & Feature Engineering
+The engine merges four disparate datasets—**cumulative bookings, fares, fare classes, and flight schedules**—into a unified analytical structure.
+* **Pivoting:** The system transforms temporal booking data so each flight–class combination occupies a single row.
+* **Snapshots:** Features are derived from cumulative booking counts at strategic intervals (e.g., $330, 300, \dots, 30$ days before departure). These snapshots serve as the input features for the model.
 
-Feature Engineering: Pivots the booking data so each flight–class combination becomes a single row, with columns representing cumulative bookings at specific days before departure (e.g., 330, 300, … , 30). These snapshots become the input features.
+### 2. Machine Learning Model
+The core logic utilizes a **Random Forest Regressor** trained on historical flight lifecycles.
+* **Target:** The model predicts the final booking count (at departure day) based on early-stage booking velocity.
+* **Revenue Calculation:** The system estimates potential revenue by multiplying predicted and actual bookings by their corresponding fare amounts:
+    $$Revenue = \text{Bookings} \times \text{Fare}$$
 
-Machine Learning Model: A Random Forest regressor is trained on historical data to predict the final booking count (at departure day) using the early booking snapshots.
+### 3. Technical Stack & API
+The project is built with a decoupled architecture to ensure speed and modularity:
 
-Revenue Calculation: Multiplies predicted and actual bookings by the corresponding fare amount to estimate revenue.
+| Component | Technology | Responsibility |
+| :--- | :--- | :--- |
+| **Backend** | Flask (Python) | Serving REST API endpoints and handling ML inference. |
+| **ML Engine** | Scikit-Learn | Random Forest model training and data preprocessing. |
+| **Frontend** | HTML/JS / Chart.js | Visualizing booking curves and sortable data tables. |
 
-Web Application: Built with Flask, it exposes REST API endpoints for:
+**API Endpoints:**
+* `/api/predictions`: Returns filtered query results with actual vs. predicted bookings
 
-/api/predictions – filtered query results with actual vs. predicted bookings and revenue.
-
-/api/booking_curve – time-series data of cumulative bookings for a specific flight and class.
-
-/api/summary – overall statistics.
-
-Interactive Frontend: HTML/JavaScript page with Chart.js displays a sortable table and a line chart; users can filter by flight, class, or error threshold and click rows to view booking curves
  
