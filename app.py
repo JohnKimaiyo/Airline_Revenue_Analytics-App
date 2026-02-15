@@ -62,7 +62,8 @@ def summary():
         'total_predicted_revenue': round(total_predicted_revenue, 2),
         'avg_error': round(avg_error, 2)
     })
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
 ________________________________________
