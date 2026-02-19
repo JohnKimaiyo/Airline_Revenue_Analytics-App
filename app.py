@@ -1,69 +1,110 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request, render_template
 import pandas as pd
-import numpy as np
+import joblib
+import os
+
 app = Flask(__name__)
-# Load precomputed predictions
-predictions = pd.read_csv('predictions.csv')
 
-# Load original bookings for curve visualization
-bookings = pd.read_csv('data/bookings_cumulative.csv')
+# ── Load predictions ──────────────────────────────────────────────────────────
+predictions_df = pd.read_csv('predictions.csv')
 
+# ── Load model ────────────────────────────────────────────────────────────────
+model = None
+if os.path.exists('models/predictor.pkl'):
+    model = joblib.load('models/predictor.pkl')
+    print("✅ Model loaded")
+else:
+    print("⚠️  Run train_model.py first to generate the model")
+
+# ── Load bookings for curve endpoint ─────────────────────────────────────────
+bookings_df = None
+if os.path.exists('data/bookings_cumulative.csv'):
+    bookings_df = pd.read_csv('data/bookings_cumulative.csv')
+    bookings_df['class_code'] = bookings_df['class_code'].str.strip().str.upper()
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
+    flights = (
+        predictions_df[['flight_id', 'flight_number', 'origin', 'dest']]
+        .drop_duplicates()
+        .sort_values('flight_number')
+        .to_dict(orient='records')
+    )
+    classes = sorted(predictions_df['class_code'].dropna().unique().tolist())
+    return render_template('index.html', flights=flights, classes=classes)
 
-# Get unique flights and classes for dropdowns
-    flights_list = predictions[['flight_id', 'flight_number', 'origin', 'dest']].drop_duplicates().to_dict('records')
-    classes = predictions['class_code'].unique().tolist()
-    return render_template('index.html', flights=flights_list, classes=classes)
 
-@app.route('/api/predictions')
+@app.route('/api/predictions', methods=['GET'])
 def get_predictions():
-    # Filter by query parameters
-    flight_id = request.args.get('flight_id', type=int)
-    class_code = request.args.get('class_code')
-    min_error = request.args.get('min_error', type=float)
-    
-    data = predictions.copy()
-    if flight_id:
-        data = data[data['flight_id'] == flight_id]
-    if class_code:
-        data = data[data['class_code'] == class_code]
-    if min_error is not None:
-        data = data[np.abs(data['error']) >= min_error]
-    
-    # Select relevant columns
-    result = data[['flight_id', 'flight_number', 'class_code', 'actual_final', 'predicted_final',
-                   'error', 'actual_revenue', 'predicted_revenue', 'origin', 'dest', 'dep_date']].to_dict('records')
-    return jsonify(result)
+    df = predictions_df.copy()
 
-@app.route('/api/booking_curve')
-def booking_curve():
-    flight_id = request.args.get('flight_id', type=int)
-    class_code = request.args.get('class_code')
-    if not flight_id or not class_code:
-        return jsonify({'error': 'Missing flight_id or class_code'}), 400
-    
-    curve = bookings[(bookings['flight_id'] == flight_id) & (bookings['class_code'] == class_code)]
-    curve = curve.sort_values('days_before')
-    return jsonify(curve[['days_before', 'cumulative_bookings']].to_dict('records'))
+    filters = {
+        'flight_number': request.args.get('flight_number'),
+        'class_code':    request.args.get('class_code'),
+        'cabin_name':    request.args.get('cabin_name'),
+        'origin':        request.args.get('origin'),
+        'dest':          request.args.get('dest'),
+        'demand_signal': request.args.get('demand_signal'),
+    }
 
-@app.route('/api/summary')
-def summary():
-    # Overall stats
-    total_flights = predictions['flight_id'].nunique()
-    total_classes = len(predictions)
-    total_actual_revenue = predictions['actual_revenue'].sum()
-    total_predicted_revenue = predictions['predicted_revenue'].sum()
-    avg_error = predictions['error'].mean()
+    for col, val in filters.items():
+        if val and col in df.columns:
+            df = df[df[col].astype(str).str.upper() == val.upper()]
+
+    limit = int(request.args.get('limit', 500))
+    df = df.head(limit)
+
+    float_cols = df.select_dtypes(include='float').columns
+    df[float_cols] = df[float_cols].round(2)
+
+    return jsonify(df.to_dict(orient='records'))
+
+
+@app.route('/api/curve/<flight_number>/<class_code>', methods=['GET'])
+def get_booking_curve(flight_number, class_code):
+    if bookings_df is None:
+        return jsonify({'error': 'Booking data not found. Check data/ folder.'}), 503
+
+    fn  = flight_number.upper()
+    cls = class_code.upper().strip()
+
+    match = predictions_df[
+        (predictions_df['flight_number'].astype(str).str.upper() == fn) &
+        (predictions_df['class_code'].str.upper() == cls)
+    ]
+
+    if match.empty:
+        return jsonify({'error': f'No data found for flight {fn} class {cls}'}), 404
+
+    flight_id = match.iloc[0]['flight_id']
+
+    curve = bookings_df[
+        (bookings_df['flight_id'] == flight_id) &
+        (bookings_df['class_code'] == cls)
+    ][['days_before', 'cumulative_bookings']].sort_values('days_before', ascending=False)
+
     return jsonify({
-        'total_flights': total_flights,
-        'total_classes': total_classes,
-        'total_actual_revenue': round(total_actual_revenue, 2),
-        'total_predicted_revenue': round(total_predicted_revenue, 2),
-        'avg_error': round(avg_error, 2)
+        'flight_number': fn,
+        'class_code':    cls,
+        'flight_id':     int(flight_id),
+        'curve':         curve.to_dict(orient='records'),
     })
+
+
+@app.route('/api/summary', methods=['GET'])
+def get_summary():
+    df = predictions_df
+    return jsonify({
+        'total_flights':           int(df['flight_id'].nunique()),
+        'total_classes':           int(df['class_code'].nunique()),
+        'total_predicted_revenue': round(float(df['predicted_revenue'].sum()), 2),
+        'total_actual_revenue':    round(float(df['actual_revenue'].sum()), 2),
+        'underpriced_count':       int((df['demand_signal'] == 'Underpriced').sum()),
+        'overpriced_count':        int((df['demand_signal'] == 'Overpriced').sum()),
+        'avg_load_factor':         round(float(df['load_factor_estimate'].mean()), 4),
+    })
+
+
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-________________________________________
+    app.run(debug=True)

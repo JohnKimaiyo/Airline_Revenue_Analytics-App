@@ -1,207 +1,323 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Airline Intelligence Dashboard</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Airline Revenue Management Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f8f9fa; }
-        h1 { color: #003366; }
-        .controls { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .controls select, .controls input, .controls button { 
-            padding: 8px 12px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; 
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 30px 40px;
+            background: #f0f2f5;
+            color: #222;
         }
-        .controls button { background-color: #003366; color: white; cursor: pointer; border: none; }
-        .controls button:hover { background-color: #002244; }
-        #summary { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1em; }
-        table { border-collapse: collapse; width: 100%; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #003366; color: white; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        tr:hover { background-color: #e2e6ea; cursor: pointer; }
-        .chart-container { width: 100%; height: 400px; margin-top: 30px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .error-message { color: red; margin: 10px 0; }
+
+        h2 {
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        select, button {
+            padding: 9px 14px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #16213e; }
+
+        .kpi-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            flex: 1;
+            min-width: 200px;
+            background: white;
+            border-radius: 10px;
+            padding: 18px 22px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .kpi-card .label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .kpi-card .value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1a1a2e;
+        }
+
+        .table-wrapper {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow-x: auto;
+            margin-bottom: 28px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13.5px;
+        }
+
+        thead th {
+            background: #1a1a2e;
+            color: white;
+            padding: 11px 12px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            border-bottom: 1px solid #eee;
+            padding: 9px 12px;
+            text-align: center;
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover { background: #f7f9fc; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-under { background: #d4edda; color: #155724; }
+        .badge-over  { background: #f8d7da; color: #721c24; }
+
+        .chart-wrapper {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 24px;
+            max-width: 600px;
+        }
     </style>
 </head>
 <body>
-    <h1>Airline Revenue Management Dashboard</h1>
-    <div class="controls">
-        <select id="flightSelect">
-            <option value="">All Flights</option>
-            {% for flight in flights %}
-            <option value="{{ flight.flight_id }}">{{ flight.flight_number }} ({{ flight.origin }}-{{ flight.dest }})</option>
-            {% endfor %}
-        </select>
-        <select id="classSelect">
-            <option value="">All Classes</option>
-            {% for class in classes %}
-            <option value="{{ class }}">{{ class }}</option>
-            {% endfor %}
-        </select>
-        <input type="number" id="minError" placeholder="Min |error|" step="0.1">
-        <button onclick="queryPredictions()">Query</button>
-        <button onclick="loadSummary()">Show Summary</button>
+
+<h2>✈️ Airline Revenue Management Dashboard</h2>
+
+<div class="controls">
+    <select id="flightSelect">
+        <option value="">All Flights</option>
+        {% for f in flights %}
+            <option value="{{ f.flight_number }}">
+                {{ f.flight_number }} ({{ f.origin }} → {{ f.dest }})
+            </option>
+        {% endfor %}
+    </select>
+
+    <select id="classSelect">
+        <option value="">All Classes</option>
+        {% for c in classes %}
+            <option value="{{ c }}">{{ c }}</option>
+        {% endfor %}
+    </select>
+
+    <button onclick="loadData()">🔍 Query</button>
+    <button onclick="resetFilters()" style="background:#6c757d;">↩ Reset</button>
+</div>
+
+<div class="kpi-row">
+    <div class="kpi-card">
+        <div class="label">Total Actual Revenue</div>
+        <div class="value" id="totalActual">—</div>
     </div>
-
-    <div id="summary"></div>
-
-    <h2>Prediction Results (click a row to view booking curve)</h2>
-    <div style="overflow-x: auto;">
-        <table id="resultsTable">
-            <thead>
-                <tr>
-                    <th>Flight</th>
-                    <th>Class</th>
-                    <th>Actual Bookings</th>
-                    <th>Predicted</th>
-                    <th>Error</th>
-                    <th>Actual Revenue</th>
-                    <th>Predicted Revenue</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <div class="kpi-card">
+        <div class="label">Total Predicted Revenue</div>
+        <div class="value" id="totalPredicted">—</div>
     </div>
-
-    <h2>Booking Curve</h2>
-    <div class="chart-container">
-        <canvas id="bookingChart"></canvas>
-        <div id="chartError" class="error-message"></div>
+    <div class="kpi-card">
+        <div class="label">Total Incremental Revenue</div>
+        <div class="value" id="totalIncremental">—</div>
     </div>
+</div>
 
-    <script>
-        let bookingChart;
-        const chartErrorDiv = document.getElementById('chartError');
+<div class="table-wrapper">
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>Flight</th>
+                <th>Class</th>
+                <th>Cabin</th>
+                <th>Actual Bookings</th>
+                <th>Predicted Bookings</th>
+                <th>Error</th>
+                <th>Actual Revenue</th>
+                <th>Predicted Revenue</th>
+                <th>Incremental Revenue</th>
+                <th>Load Factor</th>
+                <th>Demand Signal</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="11" id="emptyState">Select filters and click Query to load data.</td></tr>
+        </tbody>
+    </table>
+</div>
 
-        async function queryPredictions() {
-            const flight = document.getElementById('flightSelect').value;
-            const cls = document.getElementById('classSelect').value;
-            const minErr = document.getElementById('minError').value;
-            let url = '/api/predictions?';
-            if (flight) url += `flight_id=${flight}&`;
-            if (cls) url += `class_code=${cls}&`;
-            if (minErr) url += `min_error=${minErr}`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                displayTable(data);
-                
-                // Auto-load the first row's booking curve if available
-                if (data.length > 0) {
-                    loadBookingCurve(data[0].flight_id, data[0].class_code);
-                } else {
-                    chartErrorDiv.innerText = 'No data for selected filters.';
-                    if (bookingChart) bookingChart.destroy();
-                }
-            } catch (error) {
-                console.error('Error fetching predictions:', error);
+<div class="chart-wrapper">
+    <canvas id="revenueChart"></canvas>
+</div>
+
+<script>
+let revenueChart;
+
+function fmt(n) {
+    return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function loadData() {
+    const flightVal = document.getElementById("flightSelect").value;
+    const classCode = document.getElementById("classSelect").value;
+
+    let url = `/api/predictions?limit=1000`;
+    if (flightVal) url += `&flight_number=${flightVal}`;
+    if (classCode) url += `&class_code=${classCode}`;
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error("Network response was not ok");
+            return response.json();
+        })
+        .then(data => {
+            const tbody = document.querySelector("#resultsTable tbody");
+            tbody.innerHTML = "";
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" id="emptyState">No results found for the selected filters.</td></tr>`;
+                resetKPIs();
+                return;
             }
-        }
 
-        function displayTable(data) {
-            const tbody = document.querySelector('#resultsTable tbody');
-            tbody.innerHTML = '';
+            let totalActual = 0, totalPredicted = 0, totalIncremental = 0;
+
             data.forEach(row => {
-                const tr = document.createElement('tr');
+                totalActual      += Number(row.actual_revenue)      || 0;
+                totalPredicted   += Number(row.predicted_revenue)   || 0;
+                totalIncremental += Number(row.incremental_revenue) || 0;
+
+                const signal     = row.demand_signal || 'N/A';
+                const badgeClass = signal === 'Underpriced' ? 'badge-under' : 'badge-over';
+                const loadFactor = isNaN(row.load_factor_estimate)
+                    ? 'N/A'
+                    : (Number(row.load_factor_estimate) * 100).toFixed(1) + '%';
+
+                const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td>${row.flight_number} (${row.flight_id})</td>
-                    <td>${row.class_code}</td>
-                    <td>${row.actual_final.toFixed(2)}</td>
-                    <td>${row.predicted_final.toFixed(2)}</td>
-                    <td>${row.error.toFixed(2)}</td>
-                    <td>$${row.actual_revenue.toFixed(2)}</td>
-                    <td>$${row.predicted_revenue.toFixed(2)}</td>
+                    <td>${row.flight_number || 'N/A'}</td>
+                    <td>${row.class_code    || 'N/A'}</td>
+                    <td>${row.cabin_name    || 'N/A'}</td>
+                    <td>${row.actual_final  || 0}</td>
+                    <td>${Number(row.predicted_final).toFixed(0)}</td>
+                    <td>${Number(row.error).toFixed(2)}</td>
+                    <td>$${fmt(row.actual_revenue)}</td>
+                    <td>$${fmt(row.predicted_revenue)}</td>
+                    <td>$${fmt(row.incremental_revenue)}</td>
+                    <td>${loadFactor}</td>
+                    <td><span class="badge ${badgeClass}">${signal}</span></td>
                 `;
-                // Add click event to load booking curve
-                tr.addEventListener('click', () => loadBookingCurve(row.flight_id, row.class_code));
                 tbody.appendChild(tr);
             });
-        }
 
-        async function loadBookingCurve(flightId, classCode) {
-            console.log(`Loading curve for flight ${flightId}, class ${classCode}`);
-            chartErrorDiv.innerText = ''; // Clear previous errors
-            
-            try {
-                const response = await fetch(`/api/booking_curve?flight_id=${flightId}&class_code=${classCode}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const curve = await response.json();
-                console.log('Curve data:', curve);
+            document.getElementById("totalActual").innerText      = `$${fmt(totalActual)}`;
+            document.getElementById("totalPredicted").innerText   = `$${fmt(totalPredicted)}`;
+            document.getElementById("totalIncremental").innerText = `$${fmt(totalIncremental)}`;
 
-                if (curve.length === 0) {
-                    chartErrorDiv.innerText = 'No booking curve data found for this flight/class.';
-                    if (bookingChart) bookingChart.destroy();
-                    return;
-                }
+            updateChart(totalActual, totalPredicted, totalIncremental);
+        })
+        .catch(err => {
+            console.error("Error loading data:", err);
+            alert("Failed to load data. Check the console for details.");
+        });
+}
 
-                // Prepare data (days_before descending order)
-                const days = curve.map(d => d.days_before);
-                const bookings = curve.map(d => d.cumulative_bookings);
+function resetFilters() {
+    document.getElementById("flightSelect").value = "";
+    document.getElementById("classSelect").value  = "";
+    document.querySelector("#resultsTable tbody").innerHTML =
+        `<tr><td colspan="11" id="emptyState">Select filters and click Query to load data.</td></tr>`;
+    resetKPIs();
+    if (revenueChart) { revenueChart.destroy(); revenueChart = null; }
+}
 
-                // Destroy previous chart if exists
-                if (bookingChart) bookingChart.destroy();
+function resetKPIs() {
+    document.getElementById("totalActual").innerText      = "—";
+    document.getElementById("totalPredicted").innerText   = "—";
+    document.getElementById("totalIncremental").innerText = "—";
+}
 
-                const ctx = document.getElementById('bookingChart').getContext('2d');
-                bookingChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: days,
-                        datasets: [{
-                            label: `Flight ${flightId} Class ${classCode}`,
-                            data: bookings,
-                            borderColor: 'rgb(0, 51, 102)',
-                            backgroundColor: 'rgba(0, 51, 102, 0.1)',
-                            fill: true,
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: { 
-                                reverse: true,
-                                title: { display: true, text: 'Days Before Departure' }
-                            },
-                            y: { 
-                                title: { display: true, text: 'Cumulative Bookings' },
-                                beginAtZero: true
-                            }
-                        },
-                        plugins: {
-                            tooltip: { mode: 'index', intersect: false },
-                            legend: { display: true }
-                        }
+function updateChart(actual, predicted, incremental) {
+    const ctx = document.getElementById('revenueChart');
+    if (revenueChart) revenueChart.destroy();
+
+    revenueChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Actual Revenue', 'Predicted Revenue', 'Incremental Revenue'],
+            datasets: [{
+                label: 'Revenue ($)',
+                data: [actual, predicted, incremental],
+                backgroundColor: ['#4e79a7', '#f28e2b', '#59a14f'],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` $${fmt(ctx.raw)}`
                     }
-                });
-            } catch (error) {
-                console.error('Error loading booking curve:', error);
-                chartErrorDiv.innerText = 'Failed to load booking curve. Check console for details.';
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: val => '$' + val.toLocaleString()
+                    }
+                }
             }
         }
+    });
+}
+</script>
 
-        async function loadSummary() {
-            try {
-                const response = await fetch('/api/summary');
-                const summary = await response.json();
-                document.getElementById('summary').innerHTML = `
-                    <p><strong>Total Flights:</strong> ${summary.total_flights} | 
-                    <strong>Total Classes:</strong> ${summary.total_classes} | 
-                    <strong>Actual Revenue:</strong> $${summary.total_actual_revenue.toLocaleString()} | 
-                    <strong>Predicted Revenue:</strong> $${summary.total_predicted_revenue.toLocaleString()} | 
-                    <strong>Avg Error:</strong> ${summary.avg_error.toFixed(2)}</p>
-                `;
-            } catch (error) {
-                console.error('Error loading summary:', error);
-            }
-        }
-
-        // Initial load
-        queryPredictions();
-        loadSummary();
-    </script>
-<footer>Designed by John Kimaiyo</footer>
 </body>
 </html>
