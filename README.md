@@ -173,4 +173,6 @@ Average Revenue Prediction Accuracy: 93%
 
 This is not just a dashboard — it is a Revenue Management Decision Support System Prototype.
 
+View Live https://airline-revenue-analytics-app.vercel.app/
+
  
